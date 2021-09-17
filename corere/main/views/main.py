@@ -1,4 +1,5 @@
 import logging, json, time
+import requests
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from corere.main import models as m
@@ -21,18 +22,31 @@ logger = logging.getLogger(__name__)
 
 def index(request):
     if request.user.is_authenticated:
-        args = {'user':     request.user, 
-                'page_title': _("index_pageTitle"),
-                'manuscript_columns':  helper_manuscript_columns(request.user),
-                #'submission_columns':  helper_submission_columns(request.user),
-                'user_columns':  helper_user_columns(request.user),
-                'GROUP_ROLE_EDITOR': c.GROUP_ROLE_EDITOR,
-                'GROUP_ROLE_AUTHOR': c.GROUP_ROLE_AUTHOR,
-                'GROUP_ROLE_VERIFIER': c.GROUP_ROLE_VERIFIER,
-                'GROUP_ROLE_CURATOR': c.GROUP_ROLE_CURATOR,
-                'ADD_MANUSCRIPT_PERM_STRING': c.perm_path(c.PERM_MANU_ADD_M)
-                }
-        return render(request, "main/index.html", args)
+        girderToken = request.GET.get("girderToken", None)
+        if not (request.COOKIES.get("girderToken") or girderToken):
+            r = requests.get(
+                "https://girder.wholetale.org/api/v1/oauth/provider",
+                params={"redirect": "https://localhost:8000/?girderToken={girderToken}"}
+            )
+            resp =  HttpResponse(content="", status=303)
+            resp["Location"] = r.json()["Globus"]
+            return resp
+        args = {
+            "user": request.user,
+            "page_title": _("index_pageTitle"),
+            "manuscript_columns":  helper_manuscript_columns(request.user),
+            # "submission_columns":  helper_submission_columns(request.user),
+            "user_columns":  helper_user_columns(request.user),
+            "GROUP_ROLE_EDITOR": c.GROUP_ROLE_EDITOR,
+            "GROUP_ROLE_AUTHOR": c.GROUP_ROLE_AUTHOR,
+            "GROUP_ROLE_VERIFIER": c.GROUP_ROLE_VERIFIER,
+            "GROUP_ROLE_CURATOR": c.GROUP_ROLE_CURATOR,
+            "ADD_MANUSCRIPT_PERM_STRING": c.perm_path(c.PERM_MANU_ADD_M)
+        }
+        response = render(request, "main/index.html", args)
+        if girderToken:
+           response.set_cookie(key="girderToken", value=girderToken)
+        return response
     else:
         return render(request, "main/login.html")
 
